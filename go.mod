@@ -1,4 +1,4 @@
-module github.com/peterfraedrich/consulmq
+module github.com/peterfraedrich/consulmq v0.0.1
 
 go 1.13
 
