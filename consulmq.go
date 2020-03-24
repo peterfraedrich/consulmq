@@ -42,14 +42,18 @@ func Connect(config Config) (*MQ, error) {
 		q:      "/consulmq/" + config.MQName,
 		id:     id,
 	}
-	registerServiceConsul(mq)
+	err = registerServiceConsul(mq)
+	if err != nil {
+		return nil, err
+	}
 	return mq, nil
 }
 
-func registerServiceConsul(mq *MQ) {
-	mq.agent.ServiceRegister(&api.AgentServiceRegistration{
+func registerServiceConsul(mq *MQ) error {
+	err := mq.agent.ServiceRegister(&api.AgentServiceRegistration{
 		Name: "consulmq",
 		ID:   "consulmq-" + mq.id,
 		Tags: []string{"consulmq"},
 	})
+	return err
 }
