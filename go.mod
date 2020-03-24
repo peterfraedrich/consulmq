@@ -1,4 +1,4 @@
-module github.com/ConsulMQ
+module github.com/peterfraedrich/consulmq
 
 go 1.13
 
