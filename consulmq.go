@@ -24,11 +24,17 @@ type MQ struct {
 
 // Config is for passing configuration into the Connect function
 type Config struct {
-	Address    string
+	// Address and port number of the Consul endpoint to connect to
+	// EX: 172.16.0.2:8500
+	Address string
+	// Datacenter is a Consul concept that allows for separating assets
 	Datacenter string
-	Token      string
-	MQName     string
-	TTL        time.Duration
+	// Consul ACL Token
+	Token string
+	// Unqiue name of the message queue
+	MQName string
+	// A TTL for messages on the queue
+	TTL time.Duration
 }
 
 var defaults = map[string]string{
@@ -49,12 +55,16 @@ type queue struct {
 
 // QueueObject is a container around any data in the queue
 type QueueObject struct {
-	ID          string
-	CreatedAt   time.Time
+	// Unique ID of the object
+	ID string
+	// Creation time of the object
+	CreatedAt time.Time
+	// When the object will be deleted
 	TTLDeadline time.Time
-	Tags        []string
-	RetryCount  uint64
-	Body        []byte
+	// Any tags for the object (TBI)
+	Tags []string
+	// The actual data to be put on the queue
+	Body []byte
 }
 
 // Connect sets up the connection to the message queue
@@ -122,7 +132,6 @@ func (mq *MQ) getQueueInfo(config Config) (queue, error) {
 			RootPath:   mq.qname + "/",
 			SystemPath: mq.qname + "/_system/",
 			QueuePath:  mq.qname + "/q/",
-			RetryPath:  mq.qname + "/_retry/",
 			CreatedAt:  time.Now(),
 			TTL:        config.TTL,
 		}
@@ -148,7 +157,7 @@ func (mq *MQ) getQueueInfo(config Config) (queue, error) {
 }
 
 func (mq *MQ) createPaths() error {
-	for _, p := range []string{mq.q.QueuePath, mq.q.RetryPath} {
+	for _, p := range []string{mq.q.QueuePath} {
 		obj, _, err := mq.kv.Get(p+"_index", nil)
 		if err != nil {
 			return err
@@ -227,33 +236,65 @@ func (mq *MQ) unlock(kv *api.KVPair) {
 	}
 }
 
-func (mq *MQ) indexPush(id string) error {
-	idx, kv, err := mq.loadIndex("q")
+func (mq *MQ) indexPush(queue string, id string) error {
+	idx, kv, err := mq.loadIndex(queue)
 	if err != nil {
 		return err
 	}
 	idx = append(idx, id)
-	err = mq.writeIndex("q", idx, kv)
+	err = mq.writeIndex(queue, idx, kv)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (mq *MQ) indexPop() (string, int, error) {
-	idx, kv, err := mq.loadIndex("q")
+func (mq *MQ) indexPushFirst(queue string, id string) error {
+	idx, kv, err := mq.loadIndex(queue)
+	if err != nil {
+		return err
+	}
+	idx = append([]string{id}, idx...)
+	err = mq.writeIndex(queue, idx, kv)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (mq *MQ) indexPop(queue string) (string, int, error) {
+	idx, kv, err := mq.loadIndex(queue)
 	if err != nil {
 		return "", len(idx), err
 	}
 	var id string
 	if len(idx) > 0 {
 		id, idx = idx[0], idx[1:]
-		err = mq.writeIndex("q", idx, kv)
+		err = mq.writeIndex(queue, idx, kv)
 		if err != nil {
 			return "", len(idx), err
 		}
 	}
 	return id, len(idx), nil
+}
+
+func (mq *MQ) indexPopLast(queue string) (string, int, error) {
+	idx, kv, err := mq.loadIndex(queue)
+	if err != nil {
+		return "", len(idx), err
+	}
+	var id string
+	if len(idx) > 0 {
+		id = idx[len(idx)-1]
+		idx[len(idx)-1] = ""
+		idx = idx[:len(idx)-1]
+		err = mq.writeIndex(queue, idx, kv)
+		if err != nil {
+			return "", len(idx), err
+		}
+	}
+	return id, len(idx), nil
+
 }
 
 //Push an object to the queue
@@ -266,14 +307,43 @@ func (mq *MQ) Push(body []byte) (*QueueObject, error) {
 		ID:          id.String(),
 		CreatedAt:   time.Now(),
 		TTLDeadline: time.Now().Add(mq.q.TTL),
-		RetryCount:  0,
 		Body:        body,
 	}
 	b, err := json.MarshalIndent(obj, "", "    ")
 	if err != nil {
 		return &QueueObject{}, nil
 	}
-	err = mq.indexPush(id.String())
+	err = mq.indexPush("q", id.String())
+	if err != nil {
+		return &QueueObject{}, err
+	}
+	_, err = mq.kv.Put(&api.KVPair{
+		Key:   mq.q.QueuePath + id.String(),
+		Value: b,
+	}, nil)
+	if err != nil {
+		return obj, err
+	}
+	return obj, nil
+}
+
+//PushFirst pushes a new element to the front of the queue
+func (mq *MQ) PushFirst(body []byte) (*QueueObject, error) {
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return &QueueObject{}, err
+	}
+	obj := &QueueObject{
+		ID:          id.String(),
+		CreatedAt:   time.Now(),
+		TTLDeadline: time.Now().Add(mq.q.TTL),
+		Body:        body,
+	}
+	b, err := json.MarshalIndent(obj, "", "    ")
+	if err != nil {
+		return &QueueObject{}, nil
+	}
+	err = mq.indexPushFirst("q", id.String())
 	if err != nil {
 		return &QueueObject{}, err
 	}
@@ -289,21 +359,45 @@ func (mq *MQ) Push(body []byte) (*QueueObject, error) {
 
 //Pop pops an object off the top of the stack
 func (mq *MQ) Pop() ([]byte, *QueueObject, error) {
-	id, len, err := mq.indexPop()
-	if err != nil || len == 0 {
-		return []byte{}, &QueueObject{}, err
-	}
-	fmt.Println(id)
-	obj, _, err := mq.kv.Get(mq.q.QueuePath+id, nil)
+	id, _, err := mq.indexPop("q")
 	if err != nil {
 		return []byte{}, &QueueObject{}, err
 	}
-	_, err = mq.kv.Delete(mq.q.QueuePath+id, nil)
+	obj, _, err := mq.kv.Get(mq.q.QueuePath+id, nil)
 	if err != nil {
 		return []byte{}, &QueueObject{}, err
 	}
 	if obj == nil {
 		return []byte{}, &QueueObject{}, fmt.Errorf("object at head is nil")
+	}
+	_, err = mq.kv.Delete(mq.q.QueuePath+id, nil)
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
+	}
+	var qo QueueObject
+	err = json.Unmarshal(obj.Value, &qo)
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
+	}
+	return qo.Body, &qo, nil
+}
+
+//PopLast pulls the newest item off the stack
+func (mq *MQ) PopLast() ([]byte, *QueueObject, error) {
+	id, _, err := mq.indexPopLast("q")
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
+	}
+	obj, _, err := mq.kv.Get(mq.q.QueuePath+id, nil)
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
+	}
+	if obj == nil {
+		return []byte{}, &QueueObject{}, fmt.Errorf("object at tail is nil")
+	}
+	_, err = mq.kv.Delete(mq.q.QueuePath+id, nil)
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
 	}
 	var qo QueueObject
 	err = json.Unmarshal(obj.Value, &qo)
