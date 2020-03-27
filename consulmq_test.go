@@ -22,6 +22,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	mq, err = Connect(config)
+	if err != nil {
+		panic(err)
+	}
 	m.Run()
 }
 

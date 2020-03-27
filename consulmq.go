@@ -105,6 +105,9 @@ func Connect(config Config) (*MQ, error) {
 		ip:      ip,
 	}
 	q, err := mq.getQueueInfo(config)
+	if err != nil {
+		return nil, err
+	}
 	mq.q = &q
 	err = registerServiceConsul(mq)
 	if err != nil {
@@ -244,6 +247,9 @@ func (mq *MQ) writeIndex(q string, idx []string, kv *api.KVPair) error {
 	}
 
 	_, err = mq.kv.Put(k, nil)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
