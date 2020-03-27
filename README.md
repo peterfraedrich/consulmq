@@ -2,6 +2,8 @@
 
 Docs -- [https://pkg.go.dev/github.com/peterfraedrich/consulmq](https://pkg.go.dev/github.com/peterfraedrich/consulmq)
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/peterfraedrich/consulmq)](https://goreportcard.com/report/github.com/peterfraedrich/consulmq) [![Coverage Status](https://coveralls.io/repos/github/peterfraedrich/consulmq/badge.svg?branch=master)](https://coveralls.io/github/peterfraedrich/consulmq?branch=master)
+
 ConsulMQ allows you to use [Hashicorp Consul](https://consul.io) as a messaging queue. The idea is that you're already using Consul for configuration, monitoring, key-value DB, service-mesh, and a host of other functions, it would be nice to be able to have a simple message queue also running in Consul and eliminate the need for extra infrastrucutre (like RabbitMQ or Kafka, etc.).
 
 ## Features
