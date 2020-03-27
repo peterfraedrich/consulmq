@@ -25,6 +25,7 @@ jobs:
     - name: Get dependencies
       run: |
         go get -v -t -d ./...
+        go get github.com/mattn/goveralls
 
     - name: Start Consul Container
       run: |
@@ -36,8 +37,6 @@ jobs:
     - name: Test
       run: go test -v -covermode=count -coverprofile=coverage.out
     
-    - name: Send coverage
-      uses: shogo82148/actions-goveralls@v1
-      with:
-        github-token: ${{ secrets.COVERALLS_TOKEN }}
-        path-to-profile: coverage.out
+    - name: Send Coverage
+      run: |
+        goveralls -v -repotoken ${{ secrets.COVERALLS_TOKEN }} -coverprofile=coverage.out -service=github
