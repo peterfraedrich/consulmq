@@ -1,4 +1,3 @@
-# ConsulMQ
 ![ConsulMq](consulmq.png)
 
 Docs -- [https://pkg.go.dev/github.com/peterfraedrich/consulmq](https://pkg.go.dev/github.com/peterfraedrich/consulmq)
