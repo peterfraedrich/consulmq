@@ -36,8 +36,8 @@ jobs:
     - name: Test
       run: go test -v -covermode=count -coverprofile=coverage.out
     
-    - name: Coveralls GitHub Action
-      uses: coverallsapp/github-action@v1.0.1
+    - name: Send coverage
+      uses: shogo82148/actions-goveralls@v1
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        path-to-lcov: coverage.out
+        github-token: ${{ secrets.COVERALLS_TOKEN }}
+        path-to-profile: coverage.out
