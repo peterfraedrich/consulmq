@@ -26,14 +26,20 @@ type MQ struct {
 type Config struct {
 	// Address and port number of the Consul endpoint to connect to
 	// EX: 172.16.0.2:8500
+	// Default is "localhost:8500"
 	Address string `yaml:"address"`
 	// Datacenter is a Consul concept that allows for separating assets
+	// Consul and ConsulMQ's default is "dc1"
 	Datacenter string `yaml:"datacenter"`
 	// Consul ACL Token
+	// Default is empty (no token)
 	Token string `yaml:"token"`
 	// Unqiue name of the message queue
+	// Default is "consulmq"
 	MQName string `yaml:"mqname"`
 	// A TTL for messages on the queue
+	// Default is 10 years (effectively no TTL)
+	// TODO: Enforce TTL's
 	TTL time.Duration
 }
 
@@ -62,12 +68,15 @@ type QueueObject struct {
 	// When the object will be deleted
 	TTLDeadline time.Time
 	// Any tags for the object (TBI)
+	// TODO: Implement message tagging
 	Tags []string
 	// The actual data to be put on the queue
 	Body []byte
 }
 
 // Connect sets up the connection to the message queue
+// Connect will generate a unique machine ID that persists across restarts and will
+// use this ID to register as a service with Consul.
 func Connect(config Config) (*MQ, error) {
 	c := api.DefaultConfig()
 	config = setDefaults(config, defaults)
@@ -309,7 +318,8 @@ func (mq *MQ) indexPopLast(queue string) (string, int, error) {
 
 }
 
-//Push an object to the queue
+// Push an object to the rear of the queue. Push returns a QueueObject with the object ID,
+// the object's CTime, the TTL deadline, and the body that was passed to the function
 func (mq *MQ) Push(body []byte) (*QueueObject, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
@@ -339,7 +349,8 @@ func (mq *MQ) Push(body []byte) (*QueueObject, error) {
 	return obj, nil
 }
 
-//PushFirst pushes a new element to the front of the queue
+//PushFirst pushes a new element to the front of the queue. PushFirst returns a QueueObject with the object ID,
+// the object's CTime, the TTL deadline, and the body that was passed to the function
 func (mq *MQ) PushFirst(body []byte) (*QueueObject, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
@@ -369,7 +380,8 @@ func (mq *MQ) PushFirst(body []byte) (*QueueObject, error) {
 	return obj, nil
 }
 
-//Pop pops an object off the top of the stack
+// Pop removes the next object in the queue. Pop returns the message body as bytes and a QueueObject with the object ID,
+// the object's CTime, the TTL deadline, and the message body as bytes.
 func (mq *MQ) Pop() ([]byte, *QueueObject, error) {
 	id, _, err := mq.indexPop("q")
 	if err != nil {
@@ -394,7 +406,8 @@ func (mq *MQ) Pop() ([]byte, *QueueObject, error) {
 	return qo.Body, &qo, nil
 }
 
-//PopLast pulls the newest item off the stack
+// PopLast removes the last (newest) object in the queue. PopLast returns the message body as bytes and a QueueObject with the object ID,
+// the object's CTime, the TTL deadline, and the message body as bytes.
 func (mq *MQ) PopLast() ([]byte, *QueueObject, error) {
 	id, _, err := mq.indexPopLast("q")
 	if err != nil {
