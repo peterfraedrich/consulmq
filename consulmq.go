@@ -26,13 +26,13 @@ type MQ struct {
 type Config struct {
 	// Address and port number of the Consul endpoint to connect to
 	// EX: 172.16.0.2:8500
-	Address string
+	Address string `yaml:"address"`
 	// Datacenter is a Consul concept that allows for separating assets
-	Datacenter string
+	Datacenter string `yaml:"datacenter"`
 	// Consul ACL Token
-	Token string
+	Token string `yaml:"token"`
 	// Unqiue name of the message queue
-	MQName string
+	MQName string `yaml:"mqname"`
 	// A TTL for messages on the queue
 	TTL time.Duration
 }
@@ -80,7 +80,11 @@ func Connect(config Config) (*MQ, error) {
 	}
 	id, err := machineid.ID()
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+	ip, err := getIP(config.Address)
+	if err != nil {
+		return nil, err
 	}
 	mq := &MQ{
 		client:  client,
@@ -89,7 +93,7 @@ func Connect(config Config) (*MQ, error) {
 		session: client.Session(),
 		qname:   "consulmq/" + config.MQName,
 		id:      id,
-		ip:      getIP(config.Address),
+		ip:      ip,
 	}
 	q, err := mq.getQueueInfo(config)
 	mq.q = &q
@@ -97,7 +101,7 @@ func Connect(config Config) (*MQ, error) {
 	if err != nil {
 		return nil, err
 	}
-	go mq.doTTLUpdate()
+	go mq.doTTLUpdate(false)
 	if err != nil {
 		return nil, err
 	}
@@ -108,15 +112,19 @@ func Connect(config Config) (*MQ, error) {
 	return mq, nil
 }
 
-func (mq *MQ) doTTLUpdate() {
+func (mq *MQ) doTTLUpdate(once bool) error {
 	ticker := time.NewTicker(1 * time.Second)
+	var errs error
 	for {
 		select {
 		case <-ticker.C:
 			err := mq.agent.UpdateTTL("service:consulmq-"+mq.id, "OK", "passing")
 			if err != nil {
-				fmt.Println(err)
+				errs = err
 			}
+		}
+		if once {
+			return errs
 		}
 	}
 }
@@ -127,26 +135,7 @@ func (mq *MQ) getQueueInfo(config Config) (queue, error) {
 		return queue{}, err
 	}
 	if obj == nil {
-		q := &queue{
-			Name:       config.MQName,
-			RootPath:   mq.qname + "/",
-			SystemPath: mq.qname + "/_system/",
-			QueuePath:  mq.qname + "/q/",
-			CreatedAt:  time.Now(),
-			TTL:        config.TTL,
-		}
-		b, err := json.MarshalIndent(q, "", "    ")
-		if err != nil {
-			return queue{}, nil
-		}
-		_, err = mq.kv.Put(&api.KVPair{
-			Key:   q.SystemPath + "info",
-			Value: b,
-		}, nil)
-		if err != nil {
-			return queue{}, nil
-		}
-		return *q, nil
+		return mq.makeQueueInfo(config)
 	}
 	var info queue
 	err = json.Unmarshal(obj.Value, &info)
@@ -154,6 +143,29 @@ func (mq *MQ) getQueueInfo(config Config) (queue, error) {
 		return queue{}, nil
 	}
 	return info, nil
+}
+
+func (mq *MQ) makeQueueInfo(config Config) (queue, error) {
+	q := &queue{
+		Name:       config.MQName,
+		RootPath:   mq.qname + "/",
+		SystemPath: mq.qname + "/_system/",
+		QueuePath:  mq.qname + "/q/",
+		CreatedAt:  time.Now(),
+		TTL:        config.TTL,
+	}
+	b, err := json.MarshalIndent(q, "", "    ")
+	if err != nil {
+		return queue{}, nil
+	}
+	_, err = mq.kv.Put(&api.KVPair{
+		Key:   q.SystemPath + "info",
+		Value: b,
+	}, nil)
+	if err != nil {
+		return queue{}, nil
+	}
+	return *q, nil
 }
 
 func (mq *MQ) createPaths() error {

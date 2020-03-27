@@ -6,4 +6,5 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/consul/api v1.4.0
+	gopkg.in/yaml.v2 v2.2.8
 )

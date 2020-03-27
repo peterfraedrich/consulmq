@@ -1,7 +1,6 @@
 package consulmq
 
 import (
-	"log"
 	"net"
 	"time"
 
@@ -23,16 +22,14 @@ func registerServiceConsul(mq *MQ) error {
 	return err
 }
 
-func getIP(addr string) string {
-	conn, err := net.Dial("udp", addr)
+func getIP(addr string) (string, error) {
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-
-	return localAddr.IP.String()
+	localAddr := conn.LocalAddr().(*net.TCPAddr)
+	return localAddr.IP.String(), nil
 }
 
 func setDefaults(config Config, defaults map[string]string) Config {
