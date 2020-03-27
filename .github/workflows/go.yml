@@ -39,4 +39,4 @@ jobs:
     
     - name: Send Coverage
       run: |
-        goveralls -v -repotoken ${{ secrets.COVERALLS_TOKEN }} -coverprofile=coverage.out -service=github
+        $(go env GOPATH)/bin/goveralls -v -repotoken ${{ secrets.COVERALLS_TOKEN }} -coverprofile=coverage.out -service=github
