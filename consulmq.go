@@ -346,6 +346,9 @@ func (mq *MQ) lock(q string) (*api.KVPair, error) {
 		return nil, err
 	}
 	kv, _, err := mq.kv.Get(mq.q.RootPath+q+"/_index", nil)
+	if err != nil {
+		return kv, err
+	}
 	kv.Session = sess
 	lock := false
 	for i := 0; i <= 10; i++ {

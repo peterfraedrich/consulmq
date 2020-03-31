@@ -75,6 +75,9 @@ func TestMakeQueueInfo(t *testing.T) {
 func TestPushPop(t *testing.T) {
 	testData := []byte(uuid.New().String())
 	err := mq.EmptyQueue()
+	if err != nil {
+		t.Error(err)
+	}
 	_, err = mq.Push(testData)
 	if err != nil {
 		t.Error(err)
@@ -95,6 +98,9 @@ func TestPushPop(t *testing.T) {
 func TestPushFirstPopLast(t *testing.T) {
 	testData := []byte(uuid.New().String())
 	err := mq.EmptyQueue()
+	if err != nil {
+		t.Error(err)
+	}
 	_, err = mq.PushFirst(testData)
 	if err != nil {
 		t.Error(err)
