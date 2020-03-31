@@ -28,17 +28,17 @@ type Config struct {
 	// EX: 172.16.0.2:8500
 	// Default is "localhost:8500"
 	Address string `yaml:"address"`
-	// Datacenter is a Consul concept that allows for separating assets
+	// Datacenter is a Consul concept that allows for separating assets.
 	// Consul and ConsulMQ's default is "dc1"
 	Datacenter string `yaml:"datacenter"`
 	// Consul ACL Token
 	// Default is empty (no token)
 	Token string `yaml:"token"`
-	// Unqiue name of the message queue
+	// Unqiue name of the message queue.
 	// Default is "consulmq"
 	MQName string `yaml:"mqname"`
-	// A TTL for messages on the queue
-	// Default is 10 years (effectively no TTL)
+	// A TTL for messages on the queue.
+	// Default is 10 years (effectively no TTL).
 	// TODO: Enforce TTL's
 	TTL time.Duration
 }
@@ -79,10 +79,11 @@ type QueueObject struct {
 // use this ID to register as a service with Consul.
 func Connect(config Config) (*MQ, error) {
 	c := api.DefaultConfig()
-	config = setDefaults(config, defaults)
-	c.Address = config.Address
-	c.Datacenter = config.Datacenter
-	c.Token = config.Token
+	var newconf Config
+	_ = setDefaults(&config, &newconf, defaults)
+	c.Address = newconf.Address
+	c.Datacenter = newconf.Datacenter
+	c.Token = newconf.Token
 	client, err := api.NewClient(c)
 	if err != nil {
 		return nil, err
@@ -91,7 +92,7 @@ func Connect(config Config) (*MQ, error) {
 	if err != nil {
 		return nil, err
 	}
-	ip, err := getIP(config.Address)
+	ip, err := getIP(newconf.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -100,11 +101,11 @@ func Connect(config Config) (*MQ, error) {
 		agent:   client.Agent(),
 		kv:      client.KV(),
 		session: client.Session(),
-		qname:   "consulmq/" + config.MQName,
+		qname:   "consulmq/" + newconf.MQName,
 		id:      id,
 		ip:      ip,
 	}
-	q, err := mq.getQueueInfo(config)
+	q, err := mq.getQueueInfo(newconf)
 	if err != nil {
 		return nil, err
 	}
@@ -315,6 +316,30 @@ func (mq *MQ) indexPopLast(queue string) (string, int, error) {
 	return id, len(idx), nil
 }
 
+func (mq *MQ) indexEmptyQueue(queue string) error {
+	kv, err := mq.lock(queue)
+	if err != nil {
+		return err
+	}
+	defer mq.unlock(kv)
+	idx, _, err := mq.loadIndex(kv)
+	if err != nil {
+		return err
+	}
+	for _, id := range idx {
+		_, err := mq.kv.Delete(id, nil)
+		if err != nil {
+			return err
+		}
+	}
+	idx = []string{}
+	err = mq.writeIndex(idx, kv)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (mq *MQ) lock(q string) (*api.KVPair, error) {
 	sess, _, err := mq.session.CreateNoChecks(nil, nil)
 	if err != nil {
@@ -451,4 +476,23 @@ func (mq *MQ) PopLast() ([]byte, *QueueObject, error) {
 		return []byte{}, &QueueObject{}, err
 	}
 	return qo.Body, &qo, nil
+}
+
+// EmptyQueue empties the contents of a queue but leaves the queue intact
+func (mq *MQ) EmptyQueue() error {
+	err := mq.indexEmptyQueue("q")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteQueue deletes an entire queue, leaving nothing intact. You must call Connect
+// after calling DeleteQueue as the configured queue is no longer available.
+func (mq *MQ) DeleteQueue() error {
+	_, err := mq.kv.DeleteTree(mq.q.RootPath, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }

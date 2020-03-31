@@ -33,9 +33,9 @@ func TestGetIP(t *testing.T) {
 
 func TestSetDefaults(t *testing.T) {
 	conf := Config{}
-
+	newconf := Config{}
 	// test for setting on nul values
-	def := setDefaults(conf, defaults)
+	def := setDefaults(&conf, &newconf, defaults)
 	if def.Address != defaults["Address"] {
 		t.Errorf("Unable to set address default value")
 	}
@@ -56,7 +56,7 @@ func TestSetDefaults(t *testing.T) {
 		MQName:     "testMQ",
 		TTL:        5 * time.Minute,
 	}
-	def = setDefaults(conf, defaults)
+	def = setDefaults(&conf, &newconf, defaults)
 	if def.Address != "1.2.3.4:8500" {
 		t.Errorf("Address value was not preserved")
 	}

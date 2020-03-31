@@ -2,8 +2,10 @@ package consulmq
 
 import (
 	"io/ioutil"
+	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
 )
 
@@ -12,7 +14,7 @@ var config Config
 var mq *MQ
 
 func TestMain(m *testing.M) {
-	b, err := ioutil.ReadFile("test.config")
+	b, err := ioutil.ReadFile("testdata/test.config")
 	if err != nil {
 		panic(err)
 	}
@@ -24,16 +26,16 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	m.Run()
+	exitVal := m.Run()
+	_, err = mq.kv.DeleteTree("consulmq/consulmq/", nil)
+	if err != nil {
+		panic(err)
+	}
+	os.Exit(exitVal)
 }
 
 func TestConnect(t *testing.T) {
-	mq, err := Connect(Config{
-		Address:    "172.17.0.2:8500",
-		Datacenter: "dc1",
-		Token:      "",
-		MQName:     "testMQ",
-	})
+	mq, err := Connect(config)
 	if err != nil || mq == nil {
 		t.Error(err)
 	}
@@ -70,36 +72,56 @@ func TestMakeQueueInfo(t *testing.T) {
 	}
 }
 
-func TestPush(t *testing.T) {
-	_, err := mq.Push(TestBytes)
+func TestPushPop(t *testing.T) {
+	testData := []byte(uuid.New().String())
+	err := mq.EmptyQueue()
+	_, err = mq.Push(testData)
+	if err != nil {
+		t.Error(err)
+	}
+	b, _, err := mq.Pop()
+	if err != nil {
+		t.Error(err)
+	}
+	if string(testData[:]) != string(b[:]) {
+		t.Errorf("Test strings do not match! Had %s got %s", string(testData[:]), string(b[:]))
+	}
+	err = mq.EmptyQueue()
 	if err != nil {
 		t.Error(err)
 	}
 }
 
-func TestPushFirst(t *testing.T) {
-	_, err := mq.PushFirst(TestBytes)
+func TestPushFirstPopLast(t *testing.T) {
+	testData := []byte(uuid.New().String())
+	err := mq.EmptyQueue()
+	_, err = mq.PushFirst(testData)
+	if err != nil {
+		t.Error(err)
+	}
+	b, _, err := mq.PopLast()
+	if err != nil {
+		t.Error(err)
+	}
+	if string(testData[:]) != string(b[:]) {
+		t.Errorf("Test strings do not match! Had %s got %s", string(testData[:]), string(b[:]))
+	}
+	err = mq.EmptyQueue()
 	if err != nil {
 		t.Error(err)
 	}
 }
 
-func TestPop(t *testing.T) {
-	data, _, err := mq.Pop()
+func TestEmptyQueue(t *testing.T) {
+	err := mq.EmptyQueue()
 	if err != nil {
 		t.Error(err)
-	}
-	if string(data[:]) != string(TestBytes[:]) {
-		t.Error("Data does not match test string!")
 	}
 }
 
-func TestPopLast(t *testing.T) {
-	data, _, err := mq.PopLast()
+func TestDeleteQueue(t *testing.T) {
+	err := mq.DeleteQueue()
 	if err != nil {
 		t.Error(err)
-	}
-	if string(data[:]) != string(TestBytes[:]) {
-		t.Error("Data does not match test string!")
 	}
 }

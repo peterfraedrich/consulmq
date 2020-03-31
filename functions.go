@@ -32,18 +32,27 @@ func getIP(addr string) (string, error) {
 	return localAddr.IP.String(), nil
 }
 
-func setDefaults(config Config, defaults map[string]string) Config {
+func setDefaults(config *Config, newconf *Config, defaults map[string]string) *Config {
 	if config.Address == "" {
-		config.Address = defaults["Address"]
+		newconf.Address = defaults["Address"]
+	} else {
+		newconf.Address = config.Address
 	}
 	if config.Datacenter == "" {
-		config.Datacenter = defaults["Datacenter"]
+		newconf.Datacenter = defaults["Datacenter"]
+	} else {
+		newconf.Datacenter = config.Datacenter
 	}
 	if config.MQName == "" {
-		config.MQName = defaults["MQName"]
+		newconf.MQName = defaults["MQName"]
+	} else {
+		newconf.MQName = config.MQName
 	}
 	if config.TTL == 0*time.Second {
-		config.TTL = 87600 * time.Hour
+		newconf.TTL = 87600 * time.Hour
+	} else {
+		newconf.TTL = config.TTL
 	}
-	return config
+	newconf.Token = config.Token
+	return newconf
 }
