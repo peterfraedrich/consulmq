@@ -31,7 +31,7 @@ jobs:
         docker run -d --rm --name=consul -p 8500:8500 -e CONSUL_BIND_INTERFACE=eth0 consul:1.7.2
         
     - name: write test config
-      run: "sed -i 's/172.17.0.2/localhost/mg' test.config"
+      run: "sed -i 's/172.17.0.2/localhost/mg' testdata/test.config"
 
     - name: Test
       run: go test -v -covermode=count -coverprofile=coverage.out
