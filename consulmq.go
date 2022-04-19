@@ -293,6 +293,23 @@ func (mq *MQ) indexPop(queue string) (string, int, error) {
 	return id, len(idx), nil
 }
 
+func (mq *MQ) indexPeek(queue string) (string, int, error) {
+	kv, err := mq.lock(queue)
+	if err != nil {
+		return "", -1, err
+	}
+	defer mq.unlock(kv)
+	idx, _, err := mq.loadIndex(kv)
+	if err != nil {
+		return "", len(idx), err
+	}
+	var id string
+	if len(idx) > 0 {
+		id, idx = idx[0], idx[1:]
+	}
+	return id, len(idx), nil
+}
+
 func (mq *MQ) indexPopLast(queue string) (string, int, error) {
 	kv, err := mq.lock(queue)
 	if err != nil {
@@ -446,6 +463,26 @@ func (mq *MQ) Pop() ([]byte, *QueueObject, error) {
 	_, err = mq.kv.Delete(mq.q.QueuePath+id, nil)
 	if err != nil {
 		return []byte{}, &QueueObject{}, err
+	}
+	var qo QueueObject
+	err = json.Unmarshal(obj.Value, &qo)
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
+	}
+	return qo.Body, &qo, nil
+}
+
+func (mq *MQ) Peek() ([]byte, *QueueObject, error) {
+	id, _, err := mq.indexPeek("q")
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
+	}
+	obj, _, err := mq.kv.Get(mq.q.QueuePath+id, nil)
+	if err != nil {
+		return []byte{}, &QueueObject{}, err
+	}
+	if obj == nil {
+		return []byte{}, &QueueObject{}, fmt.Errorf("object at head is nil")
 	}
 	var qo QueueObject
 	err = json.Unmarshal(obj.Value, &qo)
