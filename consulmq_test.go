@@ -9,7 +9,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-var TestBytes = []byte("This is a test, this is only a test")
 var config Config
 var mq *MQ
 
@@ -89,6 +88,33 @@ func TestPushPop(t *testing.T) {
 	if string(testData[:]) != string(b[:]) {
 		t.Errorf("Test strings do not match! Had %s got %s", string(testData[:]), string(b[:]))
 	}
+	err = mq.EmptyQueue()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestPushPeekQueue(t *testing.T) {
+	testData := []byte(uuid.New().String())
+	err := mq.EmptyQueue()
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = mq.Push(testData)
+	if err != nil {
+		t.Error(err)
+	}
+
+	for i := 0; i < 10; i++ {
+		b, _, err := mq.Peek()
+		if err != nil {
+			t.Error(err)
+		}
+		if string(testData[:]) != string(b[:]) {
+			t.Errorf("Test strings do not match! Had %s got %s", string(testData[:]), string(b[:]))
+		}
+	}
+
 	err = mq.EmptyQueue()
 	if err != nil {
 		t.Error(err)
