@@ -1,8 +1,9 @@
-package consulmq
+package kvmq
 
-import "testing"
-
-import "time"
+import (
+	"testing"
+	"time"
+)
 
 func TestRegisterServiceConsul(t *testing.T) {
 	mq, err := Connect(Config{

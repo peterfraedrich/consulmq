@@ -1,4 +1,4 @@
-package consulmq
+package kvmq
 
 import (
 	"encoding/json"
@@ -9,70 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/consul/api"
 )
-
-// MQ provides methods for manipulating the message queue
-type MQ struct {
-	client  *api.Client
-	agent   *api.Agent
-	kv      *api.KV
-	session *api.Session
-	qname   string
-	id      string
-	ip      string
-	q       *queue
-}
-
-// Config is for passing configuration into the Connect function
-type Config struct {
-	// Address and port number of the Consul endpoint to connect to
-	// EX: 172.16.0.2:8500
-	// Default is "localhost:8500"
-	Address string `yaml:"address"`
-	// Datacenter is a Consul concept that allows for separating assets.
-	// Consul and ConsulMQ's default is "dc1"
-	Datacenter string `yaml:"datacenter"`
-	// Consul ACL Token
-	// Default is empty (no token)
-	Token string `yaml:"token"`
-	// Unqiue name of the message queue.
-	// Default is "consulmq"
-	MQName string `yaml:"mqname"`
-	// A TTL for messages on the queue.
-	// Default is 10 years (effectively no TTL).
-	// TODO: Enforce TTL's
-	TTL time.Duration
-}
-
-var defaults = map[string]string{
-	"Address":    "localhost:8500",
-	"Datacenter": "dc1",
-	"MQName":     "consulmq",
-}
-
-type queue struct {
-	Name       string
-	RootPath   string        `json:"root_path"`
-	SystemPath string        `json:"system_path"`
-	QueuePath  string        `json:"queue_path"`
-	RetryPath  string        `json:"retry_path"`
-	CreatedAt  time.Time     `json:"created_at"`
-	TTL        time.Duration `json:"ttl"`
-}
-
-// QueueObject is a container around any data in the queue
-type QueueObject struct {
-	// Unique ID of the object
-	ID string
-	// Creation time of the object
-	CreatedAt time.Time
-	// When the object will be deleted
-	TTLDeadline time.Time
-	// Any tags for the object (TBI)
-	// TODO: Implement message tagging
-	Tags []string
-	// The actual data to be put on the queue
-	Body []byte
-}
 
 // Connect sets up the connection to the message queue
 // Connect will generate a unique machine ID that persists across restarts and will
@@ -415,7 +351,7 @@ func (mq *MQ) Push(body []byte) (*QueueObject, error) {
 	return obj, nil
 }
 
-//PushFirst pushes a new element to the front of the queue. PushFirst returns a QueueObject with the object ID,
+// PushFirst pushes a new element to the front of the queue. PushFirst returns a QueueObject with the object ID,
 // the object's CTime, the TTL deadline, and the body that was passed to the function
 func (mq *MQ) PushFirst(body []byte) (*QueueObject, error) {
 	id, err := uuid.NewRandom()
