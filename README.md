@@ -1,3 +1,5 @@
+# ConsulMQ is changing to KVMQ!
+### I am working on a new branch of ConsulMQ that allows for different KV backends, not just Consul; please update your code appropriately.
 ![ConsulMq](consulmq.png)
 
 Docs -- [https://pkg.go.dev/github.com/peterfraedrich/consulmq](https://pkg.go.dev/github.com/peterfraedrich/consulmq)
