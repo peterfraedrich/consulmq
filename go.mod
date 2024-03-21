@@ -1,10 +1,3 @@
-module github.com/peterfraedrich/consulmq
+module github.com/peterfraedrich/kvmq
 
-go 1.13
-
-require (
-	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/google/uuid v1.1.1
-	github.com/hashicorp/consul/api v1.4.0
-	gopkg.in/yaml.v2 v2.2.8
-)
+go 1.18
