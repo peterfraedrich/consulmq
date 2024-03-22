@@ -21,8 +21,14 @@ type Backend interface {
 	// Removes an item from the queue; index follows same pattern as above
 	PopIndex(index int) (body []byte, object *QueueObject, err error)
 
+	// Removes an item by its ID
+	PopID(id string) (body []byte, object *QueueObject, err error)
+
 	// Gets an item at index but leaves it in the queue; index follows same pattern as above
 	PeekIndex(index int) (body []byte, object *QueueObject, err error)
+
+	// Gets an item by its ID but leaves it in the queue
+	PeekID(id string) (body []byte, object *QueueObject, err error)
 
 	// Gets all items in the queue but leaves them in place
 	PeekScan() (bodies [][]byte, objects []*QueueObject, err error)

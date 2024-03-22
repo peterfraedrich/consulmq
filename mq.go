@@ -1,45 +1,73 @@
 package kvmq
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // MQ provides methods for manipulating the message queue
 type MQ struct {
 	kv Backend
 }
 
-func NewMQ(config *Config) (*MQ, error) {
+func NewMQ(config *Config, custom ...Backend) (*MQ, error) {
 	mq := &MQ{}
 	switch strings.ToLower(config.Backend) {
-	case "memory":
-		memoryqueue, err := newMemoryQueue(config)
-		if err != nil {
-			return mq, err
-		}
-		mq.kv = memoryqueue
 	case "consul":
 		consul, err := NewConsulQueue(config)
 		if err != nil {
 			return mq, err
 		}
 		mq.kv = consul
+		err = mq.kv.Connect()
+		if err != nil {
+			return mq, err
+		}
+		return mq, nil
 	case "redis":
 		redis, err := NewRedisQueue(config)
 		if err != nil {
 			return mq, err
 		}
 		mq.kv = redis
+		err = mq.kv.Connect()
+		if err != nil {
+			return mq, err
+		}
+		return mq, nil
 	case "filesystem":
 		fs, err := NewFilesystemQueue(config)
 		if err != nil {
 			return mq, err
 		}
 		mq.kv = fs
+		err = mq.kv.Connect()
+		if err != nil {
+			return mq, err
+		}
+		return mq, nil
+	case "custom":
+		if len(custom) < 1 {
+			return nil, fmt.Errorf("to use type 'custom' you must suppy a struct pointer that fulfills interface Backend")
+		}
+		mq.kv = custom[0]
+		err := mq.kv.Connect()
+		if err != nil {
+			return mq, err
+		}
+		return mq, nil
+	default:
+		memoryQueue, err := newMemoryQueue(config)
+		if err != nil {
+			return nil, err
+		}
+		mq.kv = memoryQueue
+		err = mq.kv.Connect()
+		if err != nil {
+			return mq, err
+		}
+		return mq, nil
 	}
-	err := mq.kv.Connect()
-	if err != nil {
-		return mq, err
-	}
-	return mq, nil
 }
 
 func (mq *MQ) Length() (length int, err error) {

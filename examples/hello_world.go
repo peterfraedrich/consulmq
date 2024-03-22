@@ -3,17 +3,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/peterfraedrich/consulmq"
+	"github.com/peterfraedrich/kvmq"
 )
 
 func main() {
 
-	mq, err := consulmq.Connect(consulmq.Config{
-		Address:    "172.17.0.2:8500",
-		Datacenter: "dc1",
-		Token:      "",
-		MQName:     "cmq",
-	})
+	mq, err := kvmq.NewMQ(&kvmq.Config{Backend: "memory"})
 	if err != nil {
 		panic(err)
 	}
@@ -23,7 +18,7 @@ func main() {
 		// Put and item on the queue
 		qo, err := mq.Push([]byte("Hello, is it me you're looking for?"))
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
 		}
 		fmt.Println(qo.ID)
 		i++
@@ -34,7 +29,7 @@ func main() {
 		// Pop an item off the queue
 		_, qo, err := mq.Pop()
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
 		}
 		fmt.Println(qo.ID)
 		x++

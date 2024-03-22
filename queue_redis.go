@@ -33,7 +33,15 @@ func (mq *RedisQueue) PopIndex(index int) (body []byte, object *QueueObject, err
 	return []byte{}, nil, nil
 }
 
+func (mq *RedisQueue) PopID(id string) (body []byte, object *QueueObject, err error) {
+	return []byte{}, nil, nil
+}
+
 func (mq *RedisQueue) PeekIndex(index int) (body []byte, object *QueueObject, err error) {
+	return []byte{}, nil, nil
+}
+
+func (mq *RedisQueue) PeekID(id string) (body []byte, object *QueueObject, err error) {
 	return []byte{}, nil, nil
 }
 

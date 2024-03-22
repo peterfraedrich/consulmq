@@ -34,7 +34,15 @@ func (mq *FilesystemQueue) PopIndex(index int) (body []byte, object *QueueObject
 	return []byte{}, nil, nil
 }
 
+func (mq *FilesystemQueue) PopID(id string) (body []byte, object *QueueObject, err error) {
+	return []byte{}, nil, nil
+}
+
 func (mq *FilesystemQueue) PeekIndex(index int) (body []byte, object *QueueObject, err error) {
+	return []byte{}, nil, nil
+}
+
+func (mq *FilesystemQueue) PeekID(id string) (body []byte, object *QueueObject, err error) {
 	return []byte{}, nil, nil
 }
 

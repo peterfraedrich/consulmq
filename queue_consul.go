@@ -34,7 +34,15 @@ func (mq *ConsulQueue) PopIndex(index int) (body []byte, object *QueueObject, er
 	return []byte{}, nil, nil
 }
 
+func (mq *ConsulQueue) PopID(id string) (body []byte, object *QueueObject, err error) {
+	return []byte{}, nil, nil
+}
+
 func (mq *ConsulQueue) PeekIndex(index int) (body []byte, object *QueueObject, err error) {
+	return []byte{}, nil, nil
+}
+
+func (mq *ConsulQueue) PeekID(id string) (body []byte, object *QueueObject, err error) {
 	return []byte{}, nil, nil
 }
 

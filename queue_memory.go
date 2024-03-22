@@ -1,18 +1,21 @@
 package kvmq
 
 import (
-	"crypto/sha1"
 	"encoding/json"
 	"fmt"
-	"io"
 	"slices"
+	"strings"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type MemoryQueue struct {
-	Name  string
-	index []string
-	queue map[string]*QueueObject
+	Name   string
+	qindex []string
+	queue  map[string]*QueueObject
+	lock   sync.Mutex
 }
 
 func newMemoryQueue(config *Config) (*MemoryQueue, error) {
@@ -21,17 +24,19 @@ func newMemoryQueue(config *Config) (*MemoryQueue, error) {
 }
 
 func (mq *MemoryQueue) Connect() error {
-	mq.index = []string{}
+	mq.qindex = []string{}
 	mq.queue = map[string]*QueueObject{}
 	return nil
 }
 
 func (mq *MemoryQueue) Length() (int, error) {
-	return len(mq.index), nil
+	return len(mq.qindex), nil
 }
 
 func (mq *MemoryQueue) PushIndex(body []byte, index int) (object *QueueObject, err error) {
-	if index > len(mq.index)-1 {
+	mq.lock.Lock()
+	defer mq.deferFunc()
+	if index > len(mq.qindex)-1 {
 		return nil, fmt.Errorf("index %v out of bounds", index)
 	}
 	qo := &QueueObject{
@@ -42,85 +47,137 @@ func (mq *MemoryQueue) PushIndex(body []byte, index int) (object *QueueObject, e
 	mq.queue[qo.ID] = qo
 	switch index {
 	case -1:
-		mq.index = append(mq.index, qo.ID)
+		mq.qindex = append(mq.qindex, qo.ID)
 	case 0:
-		mq.index = append([]string{qo.ID}, mq.index...)
+		mq.qindex = append([]string{qo.ID}, mq.qindex...)
 	default:
-		mq.index = slices.Insert(mq.index, index, qo.ID)
+		mq.qindex = slices.Insert(mq.qindex, index, qo.ID)
 	}
 	return qo, nil
 }
 
 func (mq *MemoryQueue) PopIndex(index int) (body []byte, object *QueueObject, err error) {
-	if index > len(mq.index)-1 {
+	mq.lock.Lock()
+	defer mq.deferFunc()
+	if index > len(mq.qindex)-1 {
 		return []byte{}, nil, fmt.Errorf("index %v out of bounds", index)
 	}
 	var ID string
 	switch index {
 	case -1:
-		ID = mq.index[:len(mq.index)-1][0]
+		ID = mq.qindex[:len(mq.qindex)-1][0]
 	default:
-		ID = mq.index[index]
-		mq.index = append(mq.index[:index], mq.index[index:]...)
+		ID = mq.qindex[index]
+		mq.qindex = append(mq.qindex[:index], mq.qindex[index+1:]...)
+	}
+	if _, ok := mq.queue[ID]; !ok {
+		return []byte{}, nil, fmt.Errorf("item at index %v does not exist in queue", index)
 	}
 	qo := mq.queue[ID]
 	delete(mq.queue, ID)
 	return qo.Body, qo, nil
 }
 
+func (mq *MemoryQueue) PopID(id string) (body []byte, object *QueueObject, err error) {
+	mq.lock.Lock()
+	defer mq.deferFunc()
+	idx := slices.Index(mq.qindex, id)
+	if idx == -1 {
+		return []byte{}, nil, fmt.Errorf("item with ID %s does not exist in the queue index", id)
+	}
+	mq.qindex = append(mq.qindex[:idx], mq.qindex[idx+1:]...)
+	if _, ok := mq.queue[id]; !ok {
+		return []byte{}, nil, fmt.Errorf("item with ID %s does not exist in the queue", id)
+	}
+	item := mq.queue[id]
+	return item.Body, item, nil
+}
+
 func (mq *MemoryQueue) PeekIndex(index int) (body []byte, object *QueueObject, err error) {
-	if index > len(mq.index)-1 {
+	mq.lock.Lock()
+	defer mq.deferFunc()
+	if index > len(mq.qindex)-1 {
 		return []byte{}, nil, fmt.Errorf("index %v out of bounds", index)
 	}
 	var ID string
 	switch index {
 	case -1:
-		ID = mq.index[len(mq.index)-1]
+		ID = mq.qindex[len(mq.qindex)-1]
 	default:
-		ID = mq.index[index]
+		ID = mq.qindex[index]
+	}
+	if _, ok := mq.queue[ID]; !ok {
+		return []byte{}, nil, fmt.Errorf("item at index %v does not exist in queue", index)
 	}
 	qo := mq.queue[ID]
 	return qo.Body, qo, nil
 }
 
+func (mq *MemoryQueue) PeekID(id string) (body []byte, object *QueueObject, err error) {
+	mq.lock.Lock()
+	defer mq.deferFunc()
+	idx := slices.Index(mq.qindex, id)
+	if idx == -1 {
+		return []byte{}, nil, fmt.Errorf("item with ID %s does not exist in the queue index", id)
+	}
+	if _, ok := mq.queue[id]; !ok {
+		return []byte{}, nil, fmt.Errorf("item with ID %s does not exist in the queue", id)
+	}
+	return mq.queue[id].Body, mq.queue[id], nil
+}
+
 func (mq *MemoryQueue) PeekScan() (bodies [][]byte, objects []*QueueObject, err error) {
+	mq.lock.Lock()
+	defer mq.deferFunc()
 	return [][]byte{}, nil, nil
 }
 
 func (mq *MemoryQueue) Find(match []byte) (found bool, index int, object *QueueObject, err error) {
+	mq.lock.Lock()
+	defer mq.deferFunc()
 	return false, 0, nil, nil
 }
 
 func (mq *MemoryQueue) ClearQueue() error {
-	mq.index = []string{}
+	mq.lock.Lock()
+	defer mq.deferFunc()
+	mq.qindex = []string{}
 	mq.queue = map[string]*QueueObject{}
 	return nil
 }
 
 func (mq *MemoryQueue) RebuildIndex() error {
-	mq.index = []string{}
+	mq.lock.Lock()
+	defer mq.deferFunc()
+	mq.qindex = []string{}
 	for k := range mq.queue {
-		mq.index = append(mq.index, k)
+		mq.qindex = append(mq.qindex, k)
 	}
 	return nil
 }
 
 func (mq *MemoryQueue) DeleteQueue() error {
+	mq.lock.Lock()
+	defer mq.deferFunc()
 	return mq.ClearQueue()
 }
 
-func (mq MemoryQueue) hash(item []byte) string {
-	h := sha1.New()
-	io.WriteString(h, string(item[:]))
-	return string(h.Sum(nil))
-}
-
 func (mq *MemoryQueue) DebugIndex() {
-	b, _ := json.MarshalIndent(mq.index, "", " ")
-	fmt.Println(b)
+	b, _ := json.MarshalIndent(mq.qindex, "", "    ")
+	fmt.Println(string(b[:]))
 }
 
 func (mq *MemoryQueue) DebugQueue() {
-	b, _ := json.MarshalIndent(mq.queue, "", " ")
-	fmt.Println(b)
+	b, _ := json.MarshalIndent(mq.queue, "", "    ")
+	fmt.Println(string(b[:]))
+}
+
+func (mq MemoryQueue) hash(item []byte) string {
+	_ = item
+	uid, _ := uuid.NewRandom()
+	return strings.ReplaceAll(uid.String(), "-", "")
+}
+
+func (mq *MemoryQueue) deferFunc() {
+	mq.lock.Unlock()
 }
