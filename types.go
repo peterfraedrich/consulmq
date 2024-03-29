@@ -30,8 +30,8 @@ type Backend interface {
 	// Gets an item by its ID but leaves it in the queue
 	PeekID(id string) (body []byte, object *QueueObject, err error)
 
-	// Gets all items in the queue but leaves them in place
-	PeekScan() (bodies [][]byte, objects []*QueueObject, err error)
+	// Gets all items in the queue but leaves them in place; returns a map of index:object
+	PeekScan() (bodies [][]byte, objects map[int]*QueueObject, err error)
 
 	// Searches for the first item with an exact match
 	Find(match []byte) (found bool, index int, object *QueueObject, err error)
@@ -55,6 +55,10 @@ type Config struct {
 	Name string
 	// Backend to use
 	Backend string
+	// Seconds a lock should be valid for
+	LockTTL int
+	// Seconds to wait for a lock to come available
+	LockTimeout int
 	// Config values for Memory backend
 	MemoryConfig struct{}
 	// Config values for Redis backend
@@ -63,29 +67,16 @@ type Config struct {
 	}
 	// Config values for Consul backend
 	ConsulConfig struct {
+		// Consul Datacenter
 		Datacenter string
+		// Base path in the KV store to use
+		KVPath string
 	}
 	// Config values for Filesystem backend
 	FilesystemConfig struct {
 		// base directory for the queue files
 		Directory string
 	}
-}
-
-type queue struct {
-	Name       string
-	RootPath   string        `json:"root_path"`
-	SystemPath string        `json:"system_path"`
-	QueuePath  string        `json:"queue_path"`
-	RetryPath  string        `json:"retry_path"`
-	CreatedAt  time.Time     `json:"created_at"`
-	TTL        time.Duration `json:"ttl"`
-}
-
-var defaults = map[string]string{
-	"Address":    "localhost:8500",
-	"Datacenter": "dc1",
-	"MQName":     "consulmq",
 }
 
 // QueueObject is a container around any data in the queue
@@ -98,7 +89,12 @@ type QueueObject struct {
 	TTLDeadline time.Time
 	// Any tags for the object (TBI)
 	// TODO: Implement message tagging
-	Tags []string
+	// Tags []string
 	// The actual data to be put on the queue
 	Body []byte
+}
+
+type Lock struct {
+	PID int
+	TTL time.Time
 }

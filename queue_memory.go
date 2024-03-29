@@ -1,14 +1,12 @@
 package kvmq
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strings"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type MemoryQueue struct {
@@ -40,7 +38,7 @@ func (mq *MemoryQueue) PushIndex(body []byte, index int) (object *QueueObject, e
 		return nil, fmt.Errorf("index %v out of bounds", index)
 	}
 	qo := &QueueObject{
-		ID:        mq.hash(body),
+		ID:        hash(body),
 		CreatedAt: time.Now(),
 		Body:      body,
 	}
@@ -90,6 +88,7 @@ func (mq *MemoryQueue) PopID(id string) (body []byte, object *QueueObject, err e
 		return []byte{}, nil, fmt.Errorf("item with ID %s does not exist in the queue", id)
 	}
 	item := mq.queue[id]
+	delete(mq.queue, id)
 	return item.Body, item, nil
 }
 
@@ -126,16 +125,27 @@ func (mq *MemoryQueue) PeekID(id string) (body []byte, object *QueueObject, err 
 	return mq.queue[id].Body, mq.queue[id], nil
 }
 
-func (mq *MemoryQueue) PeekScan() (bodies [][]byte, objects []*QueueObject, err error) {
+func (mq *MemoryQueue) PeekScan() (bodies [][]byte, objects map[int]*QueueObject, err error) {
 	mq.lock.Lock()
 	defer mq.deferFunc()
-	return [][]byte{}, nil, nil
+	for idx, i := range mq.qindex {
+		item := mq.queue[i]
+		bodies = append(bodies, item.Body)
+		objects[idx] = item
+	}
+	return bodies, objects, nil
 }
 
 func (mq *MemoryQueue) Find(match []byte) (found bool, index int, object *QueueObject, err error) {
 	mq.lock.Lock()
 	defer mq.deferFunc()
-	return false, 0, nil, nil
+	for idx, i := range mq.qindex {
+		item := mq.queue[i]
+		if bytes.Contains(item.Body, match) {
+			return true, idx, item, nil
+		}
+	}
+	return false, -1, nil, nil
 }
 
 func (mq *MemoryQueue) ClearQueue() error {
@@ -170,12 +180,6 @@ func (mq *MemoryQueue) DebugIndex() {
 func (mq *MemoryQueue) DebugQueue() {
 	b, _ := json.MarshalIndent(mq.queue, "", "    ")
 	fmt.Println(string(b[:]))
-}
-
-func (mq MemoryQueue) hash(item []byte) string {
-	_ = item
-	uid, _ := uuid.NewRandom()
-	return strings.ReplaceAll(uid.String(), "-", "")
 }
 
 func (mq *MemoryQueue) deferFunc() {

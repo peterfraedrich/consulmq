@@ -45,7 +45,7 @@ func (mq *RedisQueue) PeekID(id string) (body []byte, object *QueueObject, err e
 	return []byte{}, nil, nil
 }
 
-func (mq *RedisQueue) PeekScan() (bodies [][]byte, objects []*QueueObject, err error) {
+func (mq *RedisQueue) PeekScan() (bodies [][]byte, objects map[int]*QueueObject, err error) {
 	return [][]byte{}, nil, nil
 }
 

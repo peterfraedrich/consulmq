@@ -83,8 +83,11 @@ Because the backend logic is separated from the application logic, you are free 
 * Will not be as performant as a dedicated message broker or stream platform (AMQP, Kafka, etc.)
 
 ## Roadmap
-* Test coverage -- goal 80%+
-* Logging & Monitoring -- log sink, Prometheus, etc.
-* Update docs
+- [ ] Unit test coverage -- goal 80%+
+- [ ] Logging & Monitoring -- log sink
+- [ ] Observability -- emit metrics
+- [ ] Update docs
+- [ ] Rename `master` to `main`
+- [ ] Merge PR into `main`
 
 ### License: MIT

@@ -110,7 +110,7 @@ func (mq *MQ) PeekIndex(index int) (body []byte, object *QueueObject, err error)
 	return mq.kv.PeekIndex(index)
 }
 
-func (mq *MQ) PeekScan() (bodies [][]byte, objects []*QueueObject, err error) {
+func (mq *MQ) PeekScan() (bodies [][]byte, objects map[int]*QueueObject, err error) {
 	return mq.kv.PeekScan()
 }
 

@@ -3,18 +3,31 @@ package kvmq
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 )
 
 type ConsulQueue struct {
-	Name     string
-	basepath string
-	index    string
-	queue    string
+	Name        string
+	basepath    string
+	datacenter  string
+	lockTimeout time.Duration
+	lockTTL     time.Duration
+	index       string
+	queue       string
 }
 
 func NewConsulQueue(config *Config) (*ConsulQueue, error) {
-
-	return &ConsulQueue{}, nil
+	if !strings.HasSuffix(config.ConsulConfig.KVPath, "/") {
+		config.ConsulConfig.KVPath = config.ConsulConfig.KVPath + "/"
+	}
+	c := &ConsulQueue{
+		datacenter:  config.ConsulConfig.Datacenter,
+		basepath:    config.ConsulConfig.KVPath,
+		lockTimeout: time.Duration(config.LockTimeout) * time.Second,
+		lockTTL:     time.Duration(config.LockTTL) * time.Second,
+	}
+	return c, nil
 }
 
 func (mq *ConsulQueue) Connect() error {
@@ -46,7 +59,7 @@ func (mq *ConsulQueue) PeekID(id string) (body []byte, object *QueueObject, err 
 	return []byte{}, nil, nil
 }
 
-func (mq *ConsulQueue) PeekScan() (bodies [][]byte, objects []*QueueObject, err error) {
+func (mq *ConsulQueue) PeekScan() (bodies [][]byte, objects map[int]*QueueObject, err error) {
 	return [][]byte{}, nil, nil
 }
 
