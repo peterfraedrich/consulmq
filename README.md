@@ -98,7 +98,9 @@ Because the backend logic is separated from the application logic, you are free 
 - [ ] Unit test coverage -- goal 80%+
 - [ ] Logging & Monitoring -- log sink
 - [ ] Observability -- emit metrics
+- [ ] Update CI
 - [ ] Update docs
+- [ ] Update Coveralls, Go Report Card, etc.
 - [ ] Rename `master` to `main`
 - [ ] Merge PR into `main`
 
