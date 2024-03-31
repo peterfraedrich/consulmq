@@ -3,6 +3,8 @@ package kvmq
 import (
 	"fmt"
 	"strings"
+
+	"github.com/creasty/defaults"
 )
 
 // MQ provides methods for manipulating the message queue
@@ -11,14 +13,17 @@ type MQ struct {
 }
 
 func NewMQ(config *Config, custom ...Backend) (*MQ, error) {
+	if err := defaults.Set(config); err != nil {
+		return nil, err
+	}
 	mq := &MQ{}
 	switch strings.ToLower(config.Backend) {
-	case "consul":
-		consul, err := NewConsulQueue(config)
+	case "rdbms":
+		rdbms, err := NewRDBMSQueue(config)
 		if err != nil {
 			return mq, err
 		}
-		mq.kv = consul
+		mq.kv = rdbms
 		err = mq.kv.Connect()
 		if err != nil {
 			return mq, err
@@ -91,7 +96,7 @@ func (mq *MQ) Pop() (body []byte, object *QueueObject, err error) {
 }
 
 func (mq *MQ) PopLast() (body []byte, object *QueueObject, err error) {
-	return mq.kv.PeekIndex(-1)
+	return mq.kv.PopIndex(-1)
 }
 
 func (mq *MQ) PopIndex(index int) (body []byte, object *QueueObject, err error) {

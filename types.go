@@ -52,37 +52,47 @@ type Backend interface {
 // Config is for passing configuration into the Connect function
 type Config struct {
 	// Unique name of the message queue
-	Name string
+	Name string `default:"kvmq"`
 	// Backend to use
-	Backend string
+	Backend string `default:"memory"`
 	// Seconds a lock should be valid for
-	LockTTL int
+	LockTTL int `default:"5"`
 	// Seconds to wait for a lock to come available
-	LockTimeout int
+	LockTimeout int `default:"30"`
 	// Config values for Memory backend
-	MemoryConfig struct{}
+	MemoryConfig interface{}
 	// Config values for Redis backend
-	RedisConfig struct {
-		DB int
-	}
+	RedisConfig RedisConfig
 	// Config values for Consul backend
-	ConsulConfig struct {
-		// Consul Datacenter
-		Datacenter string
-		// Base path in the KV store to use
-		KVPath string
-	}
+	RDBMSConfig RDBMSConfig
 	// Config values for Filesystem backend
-	FilesystemConfig struct {
-		// base directory for the queue files
-		Directory string
-	}
+	FilesystemConfig FilesystemConfig
+}
+
+type RedisConfig struct {
+	DB int `default:"0"`
+}
+
+type RDBMSConfig struct {
+	// The type of Database Engine to use (Postgres, MySQL, SQLite, etc.)
+	Engine string `default:"sqlite"`
+	// Path to SQLite DB to use
+	SQLiteDB string `default:"kvmq.db"`
+	// Connection String
+	ConnString string
+	// Enable hard delete
+	HardDelete bool `default:"false"`
+}
+
+type FilesystemConfig struct {
+	// base directory for the queue files
+	Directory string `default:".kvmq/"`
 }
 
 // QueueObject is a container around any data in the queue
 type QueueObject struct {
 	// Unique ID of the object
-	ID string
+	ID any
 	// Creation time of the object
 	CreatedAt time.Time
 	// When the object will be deleted
@@ -92,6 +102,10 @@ type QueueObject struct {
 	// Tags []string
 	// The actual data to be put on the queue
 	Body []byte
+}
+
+type ID interface {
+	uint | string
 }
 
 type Lock struct {

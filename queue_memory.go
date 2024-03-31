@@ -35,21 +35,21 @@ func (mq *MemoryQueue) PushIndex(body []byte, index int) (object *QueueObject, e
 	mq.lock.Lock()
 	defer mq.deferFunc()
 	if index > len(mq.qindex)-1 {
-		return nil, fmt.Errorf("index %v out of bounds", index)
+		return nil, fmt.Errorf("index %d out of bounds", index)
 	}
 	qo := &QueueObject{
 		ID:        hash(body),
 		CreatedAt: time.Now(),
 		Body:      body,
 	}
-	mq.queue[qo.ID] = qo
+	mq.queue[qo.ID.(string)] = qo
 	switch index {
 	case -1:
-		mq.qindex = append(mq.qindex, qo.ID)
+		mq.qindex = append(mq.qindex, qo.ID.(string))
 	case 0:
-		mq.qindex = append([]string{qo.ID}, mq.qindex...)
+		mq.qindex = append([]string{qo.ID.(string)}, mq.qindex...)
 	default:
-		mq.qindex = slices.Insert(mq.qindex, index, qo.ID)
+		mq.qindex = slices.Insert(mq.qindex, index, qo.ID.(string))
 	}
 	return qo, nil
 }
@@ -58,18 +58,22 @@ func (mq *MemoryQueue) PopIndex(index int) (body []byte, object *QueueObject, er
 	mq.lock.Lock()
 	defer mq.deferFunc()
 	if index > len(mq.qindex)-1 {
-		return []byte{}, nil, fmt.Errorf("index %v out of bounds", index)
+		return []byte{}, nil, fmt.Errorf("index %d out of bounds", index)
 	}
 	var ID string
 	switch index {
 	case -1:
-		ID = mq.qindex[:len(mq.qindex)-1][0]
+		if len(mq.qindex) == 1 {
+			ID, mq.qindex = mq.qindex[0], mq.qindex[:0]
+		} else {
+			ID = mq.qindex[:len(mq.qindex)-1][0]
+		}
 	default:
 		ID = mq.qindex[index]
 		mq.qindex = append(mq.qindex[:index], mq.qindex[index+1:]...)
 	}
 	if _, ok := mq.queue[ID]; !ok {
-		return []byte{}, nil, fmt.Errorf("item at index %v does not exist in queue", index)
+		return []byte{}, nil, fmt.Errorf("item at index %d does not exist in queue", index)
 	}
 	qo := mq.queue[ID]
 	delete(mq.queue, ID)
@@ -96,7 +100,7 @@ func (mq *MemoryQueue) PeekIndex(index int) (body []byte, object *QueueObject, e
 	mq.lock.Lock()
 	defer mq.deferFunc()
 	if index > len(mq.qindex)-1 {
-		return []byte{}, nil, fmt.Errorf("index %v out of bounds", index)
+		return []byte{}, nil, fmt.Errorf("index %d out of bounds", index)
 	}
 	var ID string
 	switch index {
@@ -106,7 +110,7 @@ func (mq *MemoryQueue) PeekIndex(index int) (body []byte, object *QueueObject, e
 		ID = mq.qindex[index]
 	}
 	if _, ok := mq.queue[ID]; !ok {
-		return []byte{}, nil, fmt.Errorf("item at index %v does not exist in queue", index)
+		return []byte{}, nil, fmt.Errorf("item at index %d does not exist in queue", index)
 	}
 	qo := mq.queue[ID]
 	return qo.Body, qo, nil
@@ -126,6 +130,7 @@ func (mq *MemoryQueue) PeekID(id string) (body []byte, object *QueueObject, err 
 }
 
 func (mq *MemoryQueue) PeekScan() (bodies [][]byte, objects map[int]*QueueObject, err error) {
+	objects = map[int]*QueueObject{}
 	mq.lock.Lock()
 	defer mq.deferFunc()
 	for idx, i := range mq.qindex {

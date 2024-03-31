@@ -26,6 +26,7 @@ func NewFilesystemQueue(config *Config) (*FilesystemQueue, error) {
 	}
 	f := &FilesystemQueue{
 		basepath:    config.FilesystemConfig.Directory,
+		indexFile:   ".index",
 		lockTimeout: time.Duration(config.LockTimeout) * time.Second,
 		lockTTL:     time.Duration(config.LockTTL) * time.Second,
 	}
@@ -34,6 +35,10 @@ func NewFilesystemQueue(config *Config) (*FilesystemQueue, error) {
 
 func (mq *FilesystemQueue) Connect() error {
 	if _, err := os.Stat(mq.basepath + mq.indexFile); errors.Is(err, os.ErrNotExist) {
+		err = os.MkdirAll(mq.basepath, 0755)
+		if err != nil {
+			return err
+		}
 		mq.qindex = []string{}
 		err := mq.writeIndexFile()
 		if err != nil {
@@ -66,7 +71,7 @@ func (mq *FilesystemQueue) PushIndex(body []byte, index int) (object *QueueObjec
 		return nil, err
 	}
 	if index > len(mq.qindex)-1 {
-		return nil, fmt.Errorf("index %v out of bounds", index)
+		return nil, fmt.Errorf("index %d out of bounds", index)
 	}
 	item := &QueueObject{
 		ID:        hash(body),
@@ -79,11 +84,15 @@ func (mq *FilesystemQueue) PushIndex(body []byte, index int) (object *QueueObjec
 	}
 	switch index {
 	case -1:
-		mq.qindex = append(mq.qindex, item.ID)
+		mq.qindex = append(mq.qindex, item.ID.(string))
 	case 0:
-		mq.qindex = append([]string{item.ID}, mq.qindex...)
+		mq.qindex = append([]string{item.ID.(string)}, mq.qindex...)
 	default:
-		mq.qindex = slices.Insert(mq.qindex, index, item.ID)
+		mq.qindex = slices.Insert(mq.qindex, index, item.ID.(string))
+	}
+	err = mq.writeIndexFile()
+	if err != nil {
+		return nil, err
 	}
 	return item, nil
 }
@@ -99,17 +108,25 @@ func (mq *FilesystemQueue) PopIndex(index int) (body []byte, object *QueueObject
 		return nil, nil, err
 	}
 	if index > len(mq.qindex)-1 {
-		return []byte{}, nil, fmt.Errorf("index %v out of bounds", index)
+		return []byte{}, nil, fmt.Errorf("index %d out of bounds", index)
 	}
 	var id string
 	switch index {
 	case -1:
-		id = mq.qindex[:len(mq.qindex)-1][0]
+		if len(mq.qindex) == 1 {
+			id, mq.qindex = mq.qindex[0], mq.qindex[:0]
+		} else {
+			id = mq.qindex[:len(mq.qindex)-1][0]
+		}
 	default:
 		id = mq.qindex[index]
 		mq.qindex = append(mq.qindex[:index], mq.qindex[index+1:]...)
 	}
 	item, err := mq.readObjectFile(id, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = mq.writeIndexFile()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -135,6 +152,10 @@ func (mq *FilesystemQueue) PopID(id string) (body []byte, object *QueueObject, e
 	if err != nil {
 		return nil, nil, err
 	}
+	err = mq.writeIndexFile()
+	if err != nil {
+		return nil, nil, err
+	}
 	return item.Body, item, nil
 }
 
@@ -149,7 +170,7 @@ func (mq *FilesystemQueue) PeekIndex(index int) (body []byte, object *QueueObjec
 		return nil, nil, err
 	}
 	if index > len(mq.qindex)-1 {
-		return []byte{}, nil, fmt.Errorf("index %v out of bounds", index)
+		return []byte{}, nil, fmt.Errorf("index %d out of bounds", index)
 	}
 	var id string
 	switch index {
@@ -187,6 +208,7 @@ func (mq *FilesystemQueue) PeekID(id string) (body []byte, object *QueueObject, 
 }
 
 func (mq *FilesystemQueue) PeekScan() (bodies [][]byte, objects map[int]*QueueObject, err error) {
+	objects = map[int]*QueueObject{}
 	err = mq.lock()
 	if err != nil {
 		return nil, nil, err
@@ -259,6 +281,7 @@ func (mq *FilesystemQueue) RebuildIndex() error {
 		return err
 	}
 	defer mq.unlock()
+	// not implemented
 	return nil
 }
 
@@ -283,6 +306,10 @@ func (mq *FilesystemQueue) DeleteQueue() error {
 		return err
 	}
 	mq.qindex = []string{}
+	err = mq.writeIndexFile()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -315,7 +342,7 @@ func (mq *FilesystemQueue) readIndexFile() error {
 }
 
 func (mq *FilesystemQueue) writeIndexFile() error {
-	b, err := json.Marshal(mq.basepath + mq.indexFile)
+	b, err := json.MarshalIndent(mq.qindex, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -351,7 +378,7 @@ func (mq *FilesystemQueue) readObjectFile(id string, consume bool) (*QueueObject
 }
 
 func (mq *FilesystemQueue) writeObjectFile(q *QueueObject) error {
-	b, err := json.Marshal(q)
+	b, err := json.MarshalIndent(q, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -360,7 +387,7 @@ func (mq *FilesystemQueue) writeObjectFile(q *QueueObject) error {
 		return err
 	}
 	defer mq.unlock()
-	err = os.WriteFile(mq.basepath+q.ID, b, 0755)
+	err = os.WriteFile(mq.basepath+q.ID.(string), b, 0755)
 	if err != nil {
 		return err
 	}
